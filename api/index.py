@@ -1,26 +1,10 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Dict
-import uvicorn
+from typing import List
 import asyncio
-import os
 
-app = FastAPI(title="AskMNIT Backend")
+app = FastAPI()
 
-# We mount the frontend directory to serve static files (HTML, CSS, JS)
-# Get the absolute path to the frontend directory
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-
-# Mount CSS and JS directories (Only if directories exist, to prevent Vercel crash)
-if os.path.exists(os.path.join(FRONTEND_DIR, "css")):
-    app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
-if os.path.exists(os.path.join(FRONTEND_DIR, "js")):
-    app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
-
-# Define request schemas
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -29,23 +13,8 @@ class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = []
 
-@app.get("/", response_class=HTMLResponse)
-async def serve_index():
-    """Serves the main HTML application."""
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    try:
-        with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "Backend is running. Frontend static files are served via Vercel."
-
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
-    """
-    This is the core logic for the AI Assistant. 
-    In a production environment, you would integrate OpenAI API or Google Gemini API here.
-    For this boilerplate, we use intelligent mock responses based on keywords.
-    """
     user_msg = request.message.lower()
     
     # Simulate network delay for realistic feel
@@ -77,7 +46,8 @@ async def chat_endpoint(request: ChatRequest):
 
     return {"reply": reply}
 
-if __name__ == "__main__":
-    print("Starting AskMNIT Backend Server...")
-    print("Run this file to start the server: python backend/main.py")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# Catch-all just in case Vercel rewrites the path
+@app.post("/")
+@app.post("/chat")
+async def chat_endpoint_fallback(request: ChatRequest):
+    return await chat_endpoint(request)
