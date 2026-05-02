@@ -78,7 +78,6 @@
     import { createRoot } from "react-dom/client";
     import { cva } from "class-variance-authority";
     import { clsx } from "clsx";
-    import { GoogleGenerativeAI } from "@google/generative-ai";
     import { createClient } from "@supabase/supabase-js";
     import { twMerge } from "tailwind-merge";
     import { AnimatePresence, motion, useInView } from "framer-motion";
@@ -541,66 +540,22 @@
 
     // --- Main Chat Interface ---
     const callGeminiAPI = async (payload) => {
-      let apiKey = localStorage.getItem('GEMINI_API_KEY');
-      if (!apiKey) {
-        apiKey = prompt("Please enter your Google Gemini API Key.\n\n(If you don't have one right now, just click 'Cancel' or leave it blank to use the Offline Demo Mode!)");
-        if (!apiKey) {
-          apiKey = 'DEMO_MODE';
-        }
-        localStorage.setItem('GEMINI_API_KEY', apiKey);
-      }
-
-      if (apiKey === 'DEMO_MODE') {
-        // --- OFFLINE DEMO MODE (Mock Persona Engine) ---
-        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1500));
-        const history = payload.filter(m => m.role !== 'system');
-        const systemMsg = payload.find(m => m.role === 'system').content;
-        const match = systemMsg.match(/whose name is (.*?)\./);
-        const userName = match ? match[1] : "Junior";
-        const latestMsg = history[history.length - 1].content.toLowerCase();
-        
-        if (/\b(tu kon hai|who are you|hu r u)\b/.test(latestMsg)) return `Main AskMNIT hu bhai, tera MNIT ka senior! Yaha teri har problem ka jugaad nikalne ke liye baitha hu. 😎 Bol kya madad karu?`;
-        if (/\b(mera naam|my name|who am i)\b/.test(latestMsg)) return `Tera naam ${userName} hai na? Sab pata hai apne ko! 💯 Baaki bata bhai, padhai theek chal rahi hai ya proxy lagwa raha hai? 😂`;
-        if (/\b(kaise|kesa|kaisa|how are you|kya haal|wassup)\b/.test(latestMsg)) return `Main toh ekdum badhiya bhai! 😎 Tu bata tera kya chal raha hai? MNIT ki life set hai na?`;
-        if (/\b(exam|exams|padhai|nahi padha|mid term|end term)\b/.test(latestMsg)) return `Bhai exams ke time ye haal sabka hota hai, tension mat le! 🫂 PYQs (Previous Year Questions) dekh le jaldi se, paas toh aaram se ho jayega. MNIT me aakhiri raat me hi asli padhai hoti hai! 💪`;
-        if (/\b(gf|girlfriend|bandi|ladki)\b/.test(latestMsg)) return `Bhai pehle CGPA pe dhyan de de! 😂 MNIT me wese bhi ratio thoda tight hai, placement lag jayegi toh sab set ho jayega. Abhi acads pe focus kar, baaki sab moh maya hai.`;
-        if (/\b(medical|certificate|dispensary)\b/.test(latestMsg)) return `Medical lagwana hai? Bhai dispensary se pehle verify karwana padta hai, phir apne department me submit hota hai. Thoda time lagta hai but easily ho jata hai agar reason solid ho.`;
-        if (/\b(syllabus|notes|pdf)\b/.test(latestMsg)) return `Arre bhai syllabus ka tension mat le! 📚 Library ke samne wale photostat ki dukaan pe sab mil jayega. Baki ERP portal check karta reh, waha bhi materials aate rehte hain. 🫂`;
-        if (/\b(attendance|proxy|75|class)\b/.test(latestMsg)) return `Bhai proxy lagana art hai, aur apne professors isme expert hai pakadne mein! 😂 75% ka chakkar maut se takkar hai. Class chala ja chup chap, varna end-sem me rote firega! 💯`;
-        if (/\b(hi|hello|hey|hola)\b/.test(latestMsg)) return `Aur bhai ${userName}! Kya scene hai? 🫂 MNIT me sab theek chal raha hai na? Bata kya madad karu teri aaj?`;
-        
-        const fallbacks = [
-            `Achha samajh gaya! Bhai ye MNIT me aam baat hai. Tu bilkul chill reh, sab set ho jayega. Aur koi specific issue aaraha hai kya isme?`,
-            `Baat toh teri bilkul sahi hai ${userName}. Aisa karte hain, main apne batch walo se confirm karke tujhe ekdum pakka solution batata hu thodi der me!`,
-            `Bhai tu akela nahi hai jiske saath ye hua hai! 😂 Mere time pe bhi same scene tha. Tu bas process follow kar, aaram se nikal jayega kaam.`,
-            `Sahi baat hai bhai! Main dekhta hu iska kya jugaad ho sakta hai. Thoda detail me bataega kya scene hai? Phir apna desi ilaaj sochte hai. 💯`
-        ];
-        return fallbacks[Math.floor(Math.random() * fallbacks.length)];
-      }
-
-      // --- REAL GEMINI API MODE ---
       try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const systemMsg = payload.find(m => m.role === 'system').content;
-        const history = payload.filter(m => m.role !== 'system');
-        const latestMsg = history.pop().content; 
-        
-        const formattedHistory = history.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        }));
-
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
-            systemInstruction: systemMsg 
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
-
-        const chat = model.startChat({ history: formattedHistory });
-        const result = await chat.sendMessage([{text: latestMsg}]);
-        return result.response.text();
+        
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Backend Error');
+        }
+        
+        return data.reply;
       } catch (error) {
-        console.error("Gemini API Error:", error);
-        return "Arre bhai, MNIT ka wifi lagta hai band pad gaya. Ya fir tera API key galat hai! Ek baar Console check kar le. 💀";
+        console.error("Backend API Error:", error);
+        return "Arre bhai, MNIT ka wifi lagta hai band pad gaya. Server down hai, thodi der me try kar! 💀";
       }
     };
 
@@ -679,13 +634,8 @@
         setIsTyping(true);
         
         const userName = user?.name || "Junior";
-        const systemPrompt = {
-            role: "system",
-            content: `You are 'AskMNIT', an empathetic, street-smart senior B.Tech student from MNIT Jaipur. You are talking to your junior, whose name is ${userName}. You must ONLY reply in 'WhatsApp Hinglish' (Hindi written in the English alphabet mixed with English). Keep sentences short, punchy, and conversational like texting. Use emojis naturally. Act like a real human peer, validate their college stress, and give practical 'jugaad' (solutions). NEVER say 'As an AI' or break character. Your job is to help them survive academics and campus life.`
-        };
-
-        const currentHistory = [...(messages[chatId] || []), newUserMsg];
-        const apiPayload = [systemPrompt, ...currentHistory];
+        const currentHistory = messages[chatId] || []; // Exclude the latest message
+        const apiPayload = { history: currentHistory, latestMsg: msgText, userName };
         
         try {
             const reply = await callGeminiAPI(apiPayload);
@@ -766,16 +716,7 @@
               </div>
             </div>
             
-            <div className="p-4 border-t border-white/5 bg-[#0a0a0a] space-y-2">
-               <button onClick={() => {
-                 const newKey = prompt("Enter your Google Gemini API Key:\n\n(Leave blank to use Offline Demo Mode)");
-                 if (newKey !== null) {
-                   localStorage.setItem('GEMINI_API_KEY', newKey || 'DEMO_MODE');
-                   alert("Settings saved! Start a new chat to use the updated mode.");
-                 }
-               }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl hover:bg-brand-purple/10 transition-colors text-sm text-gray-400 hover:text-brand-purple">
-                 <Gem size={16} /> Set API Key
-               </button>
+            <div className="p-4 border-t border-white/5 bg-[#0a0a0a]">
                <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm text-gray-400 hover:text-white">
                  <LogOut size={16} /> Logout
                </button>
