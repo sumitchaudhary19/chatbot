@@ -549,13 +549,13 @@
         
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || 'Backend Error');
+          throw new Error(data.error || data.reply || 'Backend Error');
         }
         
         return data.reply;
       } catch (error) {
         console.error("Backend API Error:", error);
-        return "Arre bhai, MNIT ka wifi lagta hai band pad gaya. Server down hai, thodi der me try kar! 💀";
+        return "System Error: " + error.message;
       }
     };
 
