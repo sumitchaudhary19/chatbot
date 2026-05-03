@@ -1,16 +1,891 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AskMNIT - Student Assistant</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  </head>
-  <body class="bg-dark-900 text-gray-100 font-sans antialiased overflow-hidden">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AskMNIT</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: { 900: '#0a0a0a', 800: '#111111', 700: '#1a1a1a', 600: '#2a2a2a' },
+            brand: { purple: '#9d4edd', pink: '#f15bb5', green: '#00f5d4', accent: '#7b2cbf' },
+            background: '#0a0a0a',
+            foreground: '#f3f4f6',
+            card: '#111111',
+            border: '#2a2a2a',
+            primary: '#9d4edd',
+            'primary-foreground': '#ffffff',
+            muted: '#1a1a1a',
+            'muted-foreground': '#a1a1aa',
+            destructive: '#ef4444',
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Outfit', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+    :root {
+      --background: 0 0% 4%;
+      --foreground: 0 0% 98%;
+      --color-primary: #9d4edd;
+      --color-chart-1: #f15bb5;
+      --color-chart-3: #00f5d4;
+      --color-chart-4: #7b2cbf;
+      --color-chart-5: #00bbf9;
+      --color-secondary: #fee440;
+      --color-destructive: #ef4444;
+      --color-accent: #9d4edd;
+    }
+    body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #f3f4f6; margin: 0; padding: 0; overflow: hidden; overscroll-behavior-y: none; }
+    
+    .glass-panel { background-color: rgba(10, 10, 10, 0.6); backdrop-filter: blur(16px); }
+    .glass-card { background-color: rgba(17, 17, 17, 0.5); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.05); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Animation classes */
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.3.1",
+        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.344.0?deps=react@18.3.1",
+        "framer-motion": "https://esm.sh/framer-motion@11.0.8?deps=react@18.3.1,react-dom@18.3.1",
+        "canvas-confetti": "https://esm.sh/canvas-confetti@1.9.2",
+        "class-variance-authority": "https://esm.sh/class-variance-authority@0.7.0",
+        "clsx": "https://esm.sh/clsx@2.1.0",
+        "tailwind-merge": "https://esm.sh/tailwind-merge@2.2.1",
+        "@google/generative-ai": "https://esm.sh/@google/generative-ai",
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.8"
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-background text-foreground h-[100dvh] w-full overflow-hidden">
+  <div id="root" class="h-full w-full"></div>
+  <script type="text/babel" data-type="module">
+    import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, createContext, Children } from "react";
+    import { createRoot } from "react-dom/client";
+    import { cva } from "class-variance-authority";
+    import { clsx } from "clsx";
+    import { createClient } from "@supabase/supabase-js";
+    import { twMerge } from "tailwind-merge";
+    import { AnimatePresence, motion, useInView } from "framer-motion";
+    import confetti from "canvas-confetti";
+    import { 
+      ArrowRight, Mail, Gem, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader,
+      Plus, User, MessageSquare, Menu, Paperclip, Sparkles, Send, Bot, Camera, Trash2, Pin, ChevronLeft, LogOut
+    } from "lucide-react";
+
+    function cn(...inputs) { return twMerge(clsx(inputs)); }
+    
+    // Initialize Supabase Client (Connected to 'chatbot' project)
+    const supabaseUrl = 'https://nwdzsptfjwxblkejsply.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53ZHpzcHRmand4YmxrZWpzcGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTE0MzMsImV4cCI6MjA5MzMyNzQzM30.mc6rnlGT3aYQ0NX9ztD7N-25cYEMNZvu2DSs-40flJE';
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // --- Provided Auth Component code (converted to JS without types) ---
+    const ConfettiContext = createContext({});
+    const Confetti = forwardRef((props, ref) => {
+      const { options, globalOptions = { resize: true, useWorker: true }, manualstart = false, ...rest } = props;
+      const instanceRef = useRef(null);
+      const canvasRef = useCallback((node) => {
+        if (node !== null) {
+          if (instanceRef.current) return;
+          instanceRef.current = confetti.create(node, { ...globalOptions, resize: true });
+        } else {
+          if (instanceRef.current) {
+            instanceRef.current.reset();
+            instanceRef.current = null;
+          }
+        }
+      }, [globalOptions]);
+      const fire = useCallback((opts = {}) => instanceRef.current?.({ ...options, ...opts }), [options]);
+      const api = useMemo(() => ({ fire }), [fire]);
+      useImperativeHandle(ref, () => api, [api]);
+      useEffect(() => { if (!manualstart) fire() }, [manualstart, fire]);
+      return <canvas ref={canvasRef} {...rest} />;
+    });
+    Confetti.displayName = "Confetti";
+
+    function TextLoop({ children, className, interval = 2, transition = { duration: 0.3 }, variants, onIndexChange, stopOnEnd = false }) {
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const items = Children.toArray(children);
+      useEffect(() => {
+        const intervalMs = interval * 1000;
+        const timer = setInterval(() => {
+          setCurrentIndex((current) => {
+            if (stopOnEnd && current === items.length - 1) {
+              clearInterval(timer);
+              return current;
+            }
+            const next = (current + 1) % items.length;
+            onIndexChange?.(next);
+            return next;
+          });
+        }, intervalMs);
+        return () => clearInterval(timer);
+      }, [items.length, interval, onIndexChange, stopOnEnd]);
+      const motionVariants = {
+        initial: { y: 20, opacity: 0 },
+        animate: { y: 0, opacity: 1 },
+        exit: { y: -20, opacity: 0 },
+      };
+      return (
+        <div className={cn('relative inline-block whitespace-nowrap', className)}>
+          <AnimatePresence mode='popLayout' initial={false}>
+            <motion.div key={currentIndex} initial='initial' animate='animate' exit='exit' transition={transition} variants={variants || motionVariants}>
+              {items[currentIndex]}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      );
+    }
+
+    function BlurFade({ children, className, variant, duration = 0.4, delay = 0, yOffset = 6, inView = true, inViewMargin = "-50px", blur = "6px" }) {
+      const ref = useRef(null);
+      const inViewResult = useInView(ref, { once: true, margin: inViewMargin });
+      const isInView = !inView || inViewResult;
+      const defaultVariants = {
+        hidden: { y: yOffset, opacity: 0, filter: `blur(${blur})` },
+        visible: { y: -yOffset, opacity: 1, filter: `blur(0px)` },
+      };
+      const combinedVariants = variant || defaultVariants;
+      return (
+        <motion.div ref={ref} initial="hidden" animate={isInView ? "visible" : "hidden"} exit="hidden" variants={combinedVariants} transition={{ delay: 0.04 + delay, duration, ease: "easeOut" }} className={className}>
+          {children}
+        </motion.div>
+      );
+    }
+
+    const glassButtonVariants = cva("relative isolate all-unset cursor-pointer rounded-full transition-all", { variants: { size: { default: "text-base font-medium", sm: "text-sm font-medium", lg: "text-lg font-medium", icon: "h-10 w-10" } }, defaultVariants: { size: "default" } });
+    const glassButtonTextVariants = cva("glass-button-text relative block select-none tracking-tighter", { variants: { size: { default: "px-6 py-3.5", sm: "px-4 py-2", lg: "px-8 py-4", icon: "flex h-10 w-10 items-center justify-center" } }, defaultVariants: { size: "default" } });
+    
+    const GlassButton = React.forwardRef(({ className, children, size, contentClassName, onClick, type="button", ...props }, ref) => {
+      const handleWrapperClick = (e) => {
+        const button = e.currentTarget.querySelector('button');
+        if (button && e.target !== button) button.click();
+      };
+      return (
+        <div className={cn("glass-button-wrap cursor-pointer rounded-full relative", className)} onClick={handleWrapperClick}>
+          <button type={type} className={cn("glass-button relative z-10 outline-none", glassButtonVariants({ size }))} ref={ref} onClick={onClick} {...props}>
+            <span className={cn(glassButtonTextVariants({ size }), contentClassName)}>{children}</span>
+          </button>
+          <div className="glass-button-shadow rounded-full pointer-events-none"></div>
+        </div>
+      );
+    });
+    GlassButton.displayName = "GlassButton";
+
+    const GradientBackground = () => (
+      <>
+        <style>
+            {` @keyframes float1 { 0% { transform: translate(0, 0); } 50% { transform: translate(-10px, 10px); } 100% { transform: translate(0, 0); } } @keyframes float2 { 0% { transform: translate(0, 0); } 50% { transform: translate(10px, -10px); } 100% { transform: translate(0, 0); } } `}
+        </style>
+        <svg width="100%" height="100%" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice" className="absolute top-0 left-0 w-full h-full pointer-events-none">
+            <defs>
+                <linearGradient id="rev_grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style={{stopColor: 'var(--color-primary)', stopOpacity:0.5}} /><stop offset="100%" style={{stopColor: 'var(--color-chart-3)', stopOpacity:0.3}} /></linearGradient>
+                <linearGradient id="rev_grad2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style={{stopColor: 'var(--color-chart-4)', stopOpacity:0.6}} /><stop offset="50%" style={{stopColor: 'var(--color-secondary)', stopOpacity:0.4}} /><stop offset="100%" style={{stopColor: 'var(--color-chart-1)', stopOpacity:0.3}} /></linearGradient>
+                <radialGradient id="rev_grad3" cx="50%" cy="50%" r="50%"><stop offset="0%" style={{stopColor: 'var(--color-destructive)', stopOpacity:0.5}} /><stop offset="100%" style={{stopColor: 'var(--color-chart-5)', stopOpacity:0.2}} /></radialGradient>
+                <filter id="rev_blur1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="55"/></filter>
+                <filter id="rev_blur2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="45"/></filter>
+                <filter id="rev_blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="65"/></filter>
+            </defs>
+            <g style={{ animation: 'float1 20s ease-in-out infinite' }}>
+                <ellipse cx="200" cy="500" rx="350" ry="280" fill="url(#rev_grad1)" filter="url(#rev_blur1)" transform="rotate(-30 200 500)"/>
+                <rect x="500" y="100" width="400" height="350" rx="80" fill="url(#rev_grad2)" filter="url(#rev_blur2)" transform="rotate(15 650 225)"/>
+            </g>
+            <g style={{ animation: 'float2 25s ease-in-out infinite' }}>
+                <circle cx="650" cy="450" r="250" fill="url(#rev_grad3)" filter="url(#rev_blur3)" opacity="0.6"/>
+                <ellipse cx="50" cy="150" rx="280" ry="220" fill="var(--color-accent)" filter="url(#rev_blur2)" opacity="0.5"/>
+            </g>
+        </svg>
+      </>
+    );
+
+    const GoogleIcon = (props) => ( <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-6 h-6"> <g fillRule="evenodd" fill="none"> <g fillRule="nonzero" transform="translate(3, 2)"> <path fill="#4285F4" d="M57.8123233,30.1515267 C57.8123233,27.7263183 57.6155321,25.9565533 57.1896408,24.1212666 L29.4960833,24.1212666 L29.4960833,35.0674653 L45.7515771,35.0674653 C45.4239683,37.7877475 43.6542033,41.8844383 39.7213169,44.6372555 L39.6661883,45.0037254 L48.4223791,51.7870338 L49.0290201,51.8475849 C54.6004021,46.7020943 57.8123233,39.1313952 57.8123233,30.1515267"></path> <path fill="#34A853" d="M29.4960833,58.9921667 C37.4599129,58.9921667 44.1456164,56.3701671 49.0290201,51.8475849 L39.7213169,44.6372555 C37.2305867,46.3742596 33.887622,47.5868638 29.4960833,47.5868638 C21.6960582,47.5868638 15.0758763,42.4415991 12.7159637,35.3297782 L12.3700541,35.3591501 L3.26524241,42.4054492 L3.14617358,42.736447 C7.9965904,52.3717589 17.959737,58.9921667 29.4960833,58.9921667"></path> <path fill="#FBBC05" d="M12.7159637,35.3297782 C12.0932812,33.4944915 11.7329116,31.5279353 11.7329116,29.4960833 C11.7329116,27.4640054 12.0932812,25.4976752 12.6832029,23.6623884 L12.6667095,23.2715173 L3.44779955,16.1120237 L3.14617358,16.2554937 C1.14708246,20.2539019 0,24.7439491 0,29.4960833 C0,34.2482175 1.14708246,38.7380388 3.14617358,42.736447 L12.7159637,35.3297782"></path> <path fill="#EB4335" d="M29.4960833,11.4050769 C35.0347044,11.4050769 38.7707997,13.7975244 40.9011602,15.7968415 L49.2255853,7.66898166 C44.1130815,2.91684746 37.4599129,0 29.4960833,0 C17.959737,0 7.9965904,6.62018183 3.14617358,16.2554937 L12.6832029,23.6623884 C15.0758763,16.5505675 21.6960582,11.4050769 29.4960833,11.4050769"></path> </g> </g></svg> );
+    const GitHubIcon = (props) => ( <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" className="w-6 h-6"> <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/> </svg> );
+
+    const modalSteps = [
+      { message: "Signing you up...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+      { message: "Onboarding you...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+      { message: "Finalizing...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+      { message: "Welcome Aboard!", icon: <PartyPopper className="w-12 h-12 text-green-500" /> }
+    ];
+    const TEXT_LOOP_INTERVAL = 1.5;
+
+    const DefaultLogo = () => ( <div className="bg-primary text-primary-foreground rounded-md p-1.5 shadow-[0_0_15px_rgba(157,78,221,0.5)]"> <Gem className="h-4 w-4" /> </div> );
+
+    const AuthComponent = ({ logo = <DefaultLogo />, brandName = "AskMNIT", onLogin }) => {
+      const [email, setEmail] = useState("");
+      const [password, setPassword] = useState("");
+      const [confirmPassword, setConfirmPassword] = useState("");
+      const [showPassword, setShowPassword] = useState(false);
+      const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+      const [authStep, setAuthStep] = useState("email");
+      const [modalStatus, setModalStatus] = useState('closed'); // 'closed', 'loading', 'error', 'success'
+      const [modalErrorMessage, setModalErrorMessage] = useState('');
+      const confettiRef = useRef(null);
+
+      const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      const isPasswordValid = password.length >= 6;
+      const isConfirmPasswordValid = confirmPassword.length >= 6;
+      
+      const passwordInputRef = useRef(null);
+      const confirmPasswordInputRef = useRef(null);
+      
+      const fireSideCanons = () => {
+        const fire = confettiRef.current?.fire;
+        if (fire) {
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+            const particleCount = 50;
+            fire({ ...defaults, particleCount, origin: { x: 0, y: 1 }, angle: 60 });
+            fire({ ...defaults, particleCount, origin: { x: 1, y: 1 }, angle: 120 });
+        }
+      };
+
+      const handleFinalSubmit = (e) => {
+        e.preventDefault();
+        if (modalStatus !== 'closed' || authStep !== 'confirmPassword') return;
+
+        if (password !== confirmPassword) {
+            setModalErrorMessage("Passwords do not match!");
+            setModalStatus('error');
+        } else {
+            setModalStatus('loading');
+            const loadingStepsCount = modalSteps.length - 1;
+            const totalDuration = loadingStepsCount * TEXT_LOOP_INTERVAL * 1000;
+            setTimeout(() => {
+                fireSideCanons();
+                setModalStatus('success');
+            }, totalDuration);
+        }
+      };
+
+      const handleProgressStep = () => {
+        if (authStep === 'email') {
+            if (isEmailValid) setAuthStep("password");
+        } else if (authStep === 'password') {
+            if (isPasswordValid) setAuthStep("confirmPassword");
+        }
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleProgressStep();
+        }
+      };
+
+      const handleGoBack = () => {
+        if (authStep === 'confirmPassword') {
+            setAuthStep('password');
+            setConfirmPassword('');
+        }
+        else if (authStep === 'password') setAuthStep('email');
+      };
+
+      const closeModal = () => {
+        setModalStatus('closed');
+        setModalErrorMessage('');
+      };
+
+      useEffect(() => {
+        if (authStep === 'password') setTimeout(() => passwordInputRef.current?.focus(), 500);
+        else if (authStep === 'confirmPassword') setTimeout(() => confirmPasswordInputRef.current?.focus(), 500);
+      }, [authStep]);
+
+      useEffect(() => {
+        if (modalStatus === 'success') {
+            fireSideCanons();
+            setTimeout(() => {
+              onLogin({ email });
+            }, 2000);
+        }
+      }, [modalStatus, email, onLogin]);
+      
+      const Modal = () => (
+        <AnimatePresence>
+            {modalStatus !== 'closed' && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md">
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-card border border-white/10 shadow-2xl rounded-2xl p-8 w-full max-w-sm flex flex-col items-center gap-4 mx-4">
+                        {(modalStatus === 'error') && <button onClick={closeModal} className="absolute top-3 right-3 p-1 text-muted-foreground hover:text-foreground transition-colors"><X className="w-5 h-5" /></button>}
+                        {modalStatus === 'error' && <>
+                            <AlertCircle className="w-12 h-12 text-destructive" />
+                            <p className="text-lg font-medium text-foreground">{modalErrorMessage}</p>
+                            <GlassButton onClick={closeModal} size="sm" className="mt-4">Try Again</GlassButton>
+                        </>}
+                        {modalStatus === 'loading' && 
+                            <TextLoop interval={TEXT_LOOP_INTERVAL} stopOnEnd={true}>
+                                {modalSteps.slice(0, -1).map((step, i) => 
+                                    <div key={i} className="flex flex-col items-center gap-4">
+                                        {step.icon}
+                                        <p className="text-lg font-medium text-foreground">{step.message}</p>
+                                    </div>
+                                )}
+                            </TextLoop>
+                        }
+                        {modalStatus === 'success' &&
+                            <div className="flex flex-col items-center gap-4">
+                                {modalSteps[modalSteps.length - 1].icon}
+                                <p className="text-lg font-medium text-foreground">{modalSteps[modalSteps.length - 1].message}</p>
+                            </div>
+                        }
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+      );
+
+      return (
+        <div className="bg-background min-h-full w-full flex flex-col relative">
+            <style>{`
+                input[type="password"]::-ms-reveal, input[type="password"]::-ms-clear { display: none !important; } input[type="password"]::-webkit-credentials-auto-fill-button, input[type="password"]::-webkit-strong-password-auto-fill-button { display: none !important; } input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus, input:-webkit-autofill:active { -webkit-box-shadow: 0 0 0 30px transparent inset !important; -webkit-text-fill-color: var(--foreground) !important; background-color: transparent !important; background-clip: content-box !important; transition: background-color 5000s ease-in-out 0s !important; color: var(--foreground) !important; caret-color: var(--foreground) !important; } input:autofill { background-color: transparent !important; background-clip: content-box !important; -webkit-text-fill-color: var(--foreground) !important; color: var(--foreground) !important; } input:-internal-autofill-selected { background-color: transparent !important; background-image: none !important; color: var(--foreground) !important; -webkit-text-fill-color: var(--foreground) !important; } input:-webkit-autofill::first-line { color: var(--foreground) !important; -webkit-text-fill-color: var(--foreground) !important; }
+                @property --angle-1 { syntax: "<angle>"; inherits: false; initial-value: -75deg; } @property --angle-2 { syntax: "<angle>"; inherits: false; initial-value: -45deg; }
+                .glass-button-wrap { --anim-time: 400ms; --anim-ease: cubic-bezier(0.25, 1, 0.5, 1); --border-width: clamp(1px, 0.0625em, 4px); position: relative; z-index: 2; transform-style: preserve-3d; transition: transform var(--anim-time) var(--anim-ease); } .glass-button-wrap:has(.glass-button:active) { transform: rotateX(25deg); } .glass-button-shadow { --shadow-cutoff-fix: 2em; position: absolute; width: calc(100% + var(--shadow-cutoff-fix)); height: calc(100% + var(--shadow-cutoff-fix)); top: calc(0% - var(--shadow-cutoff-fix) / 2); left: calc(0% - var(--shadow-cutoff-fix) / 2); filter: blur(clamp(2px, 0.125em, 12px)); transition: filter var(--anim-time) var(--anim-ease); pointer-events: none; z-index: 0; } .glass-button-shadow::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: linear-gradient(180deg, oklch(from var(--foreground) l c h / 20%), oklch(from var(--foreground) l c h / 10%)); width: calc(100% - var(--shadow-cutoff-fix) - 0.25em); height: calc(100% - var(--shadow-cutoff-fix) - 0.25em); top: calc(var(--shadow-cutoff-fix) - 0.5em); left: calc(var(--shadow-cutoff-fix) - 0.875em); padding: 0.125em; box-sizing: border-box; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; transition: all var(--anim-time) var(--anim-ease); opacity: 1; }
+                .glass-button { -webkit-tap-highlight-color: transparent; backdrop-filter: blur(clamp(1px, 0.125em, 4px)); transition: all var(--anim-time) var(--anim-ease); background: linear-gradient(-75deg, oklch(from var(--background) l c h / 5%), oklch(from var(--background) l c h / 20%), oklch(from var(--background) l c h / 5%)); box-shadow: inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%), inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%), 0 0.25em 0.125em -0.125em oklch(from var(--foreground) l c h / 20%), 0 0 0.1em 0.25em inset oklch(from var(--background) l c h / 20%), 0 0 0 0 oklch(from var(--background) l c h); } .glass-button:hover { transform: scale(0.975); backdrop-filter: blur(0.01em); box-shadow: inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%), inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%), 0 0.15em 0.05em -0.1em oklch(from var(--foreground) l c h / 25%), 0 0 0.05em 0.1em inset oklch(from var(--background) l c h / 50%), 0 0 0 0 oklch(from var(--background) l c h); } .glass-button-text { color: oklch(from var(--foreground) l c h / 90%); text-shadow: 0em 0.25em 0.05em oklch(from var(--foreground) l c h / 10%); transition: all var(--anim-time) var(--anim-ease); } .glass-button:hover .glass-button-text { text-shadow: 0.025em 0.025em 0.025em oklch(from var(--foreground) l c h / 12%); } .glass-button-text::after { content: ""; display: block; position: absolute; width: calc(100% - var(--border-width)); height: calc(100% - var(--border-width)); top: calc(0% + var(--border-width) / 2); left: calc(0% + var(--border-width) / 2); box-sizing: border-box; border-radius: 9999px; overflow: clip; background: linear-gradient(var(--angle-2), transparent 0%, oklch(from var(--background) l c h / 50%) 40% 50%, transparent 55%); z-index: 3; mix-blend-mode: screen; pointer-events: none; background-size: 200% 200%; background-position: 0% 50%; transition: background-position calc(var(--anim-time) * 1.25) var(--anim-ease), --angle-2 calc(var(--anim-time) * 1.25) var(--anim-ease); } .glass-button:hover .glass-button-text::after { background-position: 25% 50%; } .glass-button:active .glass-button-text::after { background-position: 50% 15%; --angle-2: -15deg; } .glass-button::after { content: ""; position: absolute; z-index: 1; inset: 0; border-radius: 9999px; width: calc(100% + var(--border-width)); height: calc(100% + var(--border-width)); top: calc(0% - var(--border-width) / 2); left: calc(0% - var(--border-width) / 2); padding: var(--border-width); box-sizing: border-box; background: conic-gradient(from var(--angle-1) at 50% 50%, oklch(from var(--foreground) l c h / 50%) 0%, transparent 5% 40%, oklch(from var(--foreground) l c h / 50%) 50%, transparent 60% 95%, oklch(from var(--foreground) l c h / 50%) 100%), linear-gradient(180deg, oklch(from var(--background) l c h / 50%), oklch(from var(--background) l c h / 50%)); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; transition: all var(--anim-time) var(--anim-ease), --angle-1 500ms ease; box-shadow: inset 0 0 0 calc(var(--border-width) / 2) oklch(from var(--background) l c h / 50%); pointer-events: none; } .glass-button:hover::after { --angle-1: -125deg; } .glass-button:active::after { --angle-1: -75deg; } .glass-button-wrap:has(.glass-button:hover) .glass-button-shadow { filter: blur(clamp(2px, 0.0625em, 6px)); } .glass-button-wrap:has(.glass-button:hover) .glass-button-shadow::after { top: calc(var(--shadow-cutoff-fix) - 0.875em); opacity: 1; } .glass-button-wrap:has(.glass-button:active) .glass-button-shadow { filter: blur(clamp(2px, 0.125em, 12px)); } .glass-button-wrap:has(.glass-button:active) .glass-button-shadow::after { top: calc(var(--shadow-cutoff-fix) - 0.5em); opacity: 0.75; } .glass-button-wrap:has(.glass-button:active) .glass-button-text { text-shadow: 0.025em 0.25em 0.05em oklch(from var(--foreground) l c h / 12%); } .glass-button-wrap:has(.glass-button:active) .glass-button { box-shadow: inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%), inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%), 0 0.125em 0.125em -0.125em oklch(from var(--foreground) l c h / 20%), 0 0 0.1em 0.25em inset oklch(from var(--background) l c h / 20%), 0 0.225em 0.05em 0 oklch(from var(--foreground) l c h / 5%), 0 0.25em 0 0 oklch(from var(--background) l c h / 75%), inset 0 0.25em 0.05em 0 oklch(from var(--foreground) l c h / 15%); } @media (hover: none) and (pointer: coarse) { .glass-button::after, .glass-button:hover::after, .glass-button:active::after { --angle-1: -75deg; } .glass-button .glass-button-text::after, .glass-button:active .glass-button-text::after { --angle-2: -45deg; } }
+                .glass-input-wrap { position: relative; z-index: 2; transform-style: preserve-3d; border-radius: 9999px; } .glass-input { display: flex; position: relative; width: 100%; align-items: center; gap: 0.5rem; border-radius: 9999px; padding: 0.25rem; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(clamp(1px, 0.125em, 4px)); transition: all 400ms cubic-bezier(0.25, 1, 0.5, 1); background: linear-gradient(-75deg, oklch(from var(--background) l c h / 5%), oklch(from var(--background) l c h / 20%), oklch(from var(--background) l c h / 5%)); box-shadow: inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%), inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%), 0 0.25em 0.125em -0.125em oklch(from var(--foreground) l c h / 20%), 0 0 0.1em 0.25em inset oklch(from var(--background) l c h / 20%), 0 0 0 0 oklch(from var(--background) l c h); } .glass-input-wrap:focus-within .glass-input { backdrop-filter: blur(0.01em); box-shadow: inset 0 0.125em 0.125em oklch(from var(--foreground) l c h / 5%), inset 0 -0.125em 0.125em oklch(from var(--background) l c h / 50%), 0 0.15em 0.05em -0.1em oklch(from var(--foreground) l c h / 25%), 0 0 0.05em 0.1em inset oklch(from var(--background) l c h / 50%), 0 0 0 0 oklch(from var(--background) l c h); } .glass-input::after { content: ""; position: absolute; z-index: 1; inset: 0; border-radius: 9999px; width: calc(100% + clamp(1px, 0.0625em, 4px)); height: calc(100% + clamp(1px, 0.0625em, 4px)); top: calc(0% - clamp(1px, 0.0625em, 4px) / 2); left: calc(0% - clamp(1px, 0.0625em, 4px) / 2); padding: clamp(1px, 0.0625em, 4px); box-sizing: border-box; background: conic-gradient(from var(--angle-1) at 50% 50%, oklch(from var(--foreground) l c h / 50%) 0%, transparent 5% 40%, oklch(from var(--foreground) l c h / 50%) 50%, transparent 60% 95%, oklch(from var(--foreground) l c h / 50%) 100%), linear-gradient(180deg, oklch(from var(--background) l c h / 50%), oklch(from var(--background) l c h / 50%)); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; transition: all 400ms cubic-bezier(0.25, 1, 0.5, 1), --angle-1 500ms ease; box-shadow: inset 0 0 0 calc(clamp(1px, 0.0625em, 4px) / 2) oklch(from var(--background) l c h / 50%); pointer-events: none; } .glass-input-wrap:focus-within .glass-input::after { --angle-1: -125deg; } .glass-input-text-area { position: absolute; inset: 0; border-radius: 9999px; pointer-events: none; } .glass-input-text-area::after { content: ""; display: block; position: absolute; width: calc(100% - clamp(1px, 0.0625em, 4px)); height: calc(100% - clamp(1px, 0.0625em, 4px)); top: calc(0% + clamp(1px, 0.0625em, 4px) / 2); left: calc(0% + clamp(1px, 0.0625em, 4px) / 2); box-sizing: border-box; border-radius: 9999px; overflow: clip; background: linear-gradient(var(--angle-2), transparent 0%, oklch(from var(--background) l c h / 50%) 40% 50%, transparent 55%); z-index: 3; mix-blend-mode: screen; pointer-events: none; background-size: 200% 200%; background-position: 0% 50%; transition: background-position calc(400ms * 1.25) cubic-bezier(0.25, 1, 0.5, 1), --angle-2 calc(400ms * 1.25) cubic-bezier(0.25, 1, 0.5, 1); } .glass-input-wrap:focus-within .glass-input-text-area::after { background-position: 25% 50%; }
+            `}</style>
+
+            <Confetti ref={confettiRef} manualstart className="fixed top-0 left-0 w-full h-full pointer-events-none z-[999]" />
+            <Modal />
+
+            <div className={cn( "fixed top-6 left-6 z-20 flex items-center gap-3", "md:left-1/2 md:-translate-x-1/2" )}>
+                {logo}
+                <h1 className="text-xl font-display font-bold text-foreground tracking-wide">{brandName}</h1>
+            </div>
+
+            <div className={cn("flex w-full flex-1 h-full items-center justify-center relative overflow-hidden")}>
+                <div className="absolute inset-0 z-0"><GradientBackground /></div>
+                <fieldset disabled={modalStatus !== 'closed'} className="relative z-10 flex flex-col items-center gap-8 w-full max-w-[320px] mx-auto p-4">
+                    <AnimatePresence mode="wait">
+                        {authStep === "email" && <motion.div key="email-content" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center gap-4">
+                            <BlurFade delay={0.25 * 1} className="w-full"><div className="text-center"><p className="font-display font-bold text-4xl sm:text-5xl tracking-tight text-white whitespace-nowrap">Welcome Back</p></div></BlurFade>
+                            <BlurFade delay={0.25 * 2}><p className="text-sm font-medium text-gray-400">Continue with</p></BlurFade>
+                            <BlurFade delay={0.25 * 3}><div className="flex items-center justify-center gap-4 w-full">
+                                <GlassButton onClick={() => onLogin({email: 'student@mnit.ac.in', name: 'Google User'})} contentClassName="flex items-center justify-center gap-2" size="sm"><GoogleIcon /><span className="font-semibold text-foreground">Google</span></GlassButton>
+                                <GlassButton onClick={() => onLogin({email: 'github@mnit.ac.in', name: 'GitHub User'})} contentClassName="flex items-center justify-center gap-2" size="sm"><GitHubIcon /><span className="font-semibold text-foreground">GitHub</span></GlassButton>
+                            </div></BlurFade>
+                            <BlurFade delay={0.25 * 4} className="w-full"><div className="flex items-center w-full gap-2 py-2"><hr className="w-full border-white/10"/><span className="text-xs font-semibold text-gray-500">OR</span><hr className="w-full border-white/10"/></div></BlurFade>
+                        </motion.div>}
+                        {authStep === "password" && <motion.div key="password-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
+                            <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-display font-bold text-4xl sm:text-5xl tracking-tight text-white whitespace-nowrap">Secure Login</p></div></BlurFade>
+                            <BlurFade delay={0.25 * 1}><p className="text-sm font-medium text-gray-400">Enter your password to continue.</p></BlurFade>
+                        </motion.div>}
+                        {authStep === "confirmPassword" && <motion.div key="confirm-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
+                            <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-display font-bold text-4xl sm:text-5xl tracking-tight text-white whitespace-nowrap">One Last Step</p></div></BlurFade>
+                            <BlurFade delay={0.25 * 1}><p className="text-sm font-medium text-gray-400">Confirm your password to continue.</p></BlurFade>
+                        </motion.div>}
+                    </AnimatePresence>
+                    
+                    <form onSubmit={handleFinalSubmit} className="w-full space-y-6">
+                        <AnimatePresence>
+                            {authStep !== 'confirmPassword' && <motion.div key="email-password-fields" exit={{ opacity: 0, filter: 'blur(4px)' }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full space-y-6">
+                                <BlurFade delay={authStep === 'email' ? 0.25 * 5 : 0} inView={true} className="w-full">
+                                    <div className="relative w-full">
+                                        <AnimatePresence>
+                                            {authStep === "password" && <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3, delay: 0.4 }} className="absolute -top-6 left-4 z-10"><label className="text-xs text-brand-purple font-semibold">Email</label></motion.div>}
+                                        </AnimatePresence>
+                                        <div className="glass-input-wrap w-full"><div className="glass-input">
+                                            <span className="glass-input-text-area"></span>
+                                            <div className={cn( "relative z-10 flex-shrink-0 flex items-center justify-center overflow-hidden transition-all duration-300 ease-in-out", email.length > 20 && authStep === 'email' ? "w-0 px-0" : "w-10 pl-2" )}><Mail className="h-5 w-5 text-gray-400 flex-shrink-0" /></div>
+                                            <input type="email" placeholder="Student Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} className={cn("relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-gray-500 focus:outline-none transition-[padding-right] duration-300 ease-in-out delay-300", isEmailValid && authStep === 'email' ? "pr-2" : "pr-0")} />
+                                            <div className={cn( "relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isEmailValid && authStep === 'email' ? "w-10 pr-1" : "w-0" )}><GlassButton type="button" onClick={handleProgressStep} size="icon" aria-label="Continue with email" contentClassName="text-white hover:text-white"><ArrowRight className="w-5 h-5" /></GlassButton></div>
+                                        </div></div>
+                                    </div>
+                                </BlurFade>
+                                <AnimatePresence>
+                                    {authStep === "password" && <BlurFade key="password-field" className="w-full">
+                                        <div className="relative w-full">
+                                            <AnimatePresence>
+                                                {password.length > 0 && <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="absolute -top-6 left-4 z-10"><label className="text-xs text-brand-purple font-semibold">Password</label></motion.div>}
+                                            </AnimatePresence>
+                                            <div className="glass-input-wrap w-full"><div className="glass-input">
+                                                <span className="glass-input-text-area"></span>
+                                                <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-10 pl-2">
+                                                    {isPasswordValid ? <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-white transition-colors p-2 rounded-full">{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button> : <Lock className="h-5 w-5 text-gray-400 flex-shrink-0" />}
+                                                </div>
+                                                <input ref={passwordInputRef} type={showPassword ? "text" : "password"} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} className="relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-gray-500 focus:outline-none" />
+                                                <div className={cn( "relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isPasswordValid ? "w-10 pr-1" : "w-0" )}><GlassButton type="button" onClick={handleProgressStep} size="icon" aria-label="Submit password" contentClassName="text-white hover:text-white"><ArrowRight className="w-5 h-5" /></GlassButton></div>
+                                            </div></div>
+                                        </div>
+                                        <BlurFade inView delay={0.2}><button type="button" onClick={handleGoBack} className="mt-4 flex items-center justify-center w-full gap-2 text-sm text-gray-400 hover:text-white transition-colors"><ArrowLeft className="w-4 h-4" /> Go back</button></BlurFade>
+                                    </BlurFade>}
+                                </AnimatePresence>
+                            </motion.div>}
+                        </AnimatePresence>
+                        <AnimatePresence>
+                            {authStep === 'confirmPassword' && <BlurFade key="confirm-password-field" className="w-full">
+                                <div className="relative w-full">
+                                    <AnimatePresence>
+                                        {confirmPassword.length > 0 && <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="absolute -top-6 left-4 z-10"><label className="text-xs text-brand-purple font-semibold">Confirm Password</label></motion.div>}
+                                    </AnimatePresence>
+                                    <div className="glass-input-wrap w-full"><div className="glass-input">
+                                        <span className="glass-input-text-area"></span>
+                                        <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-10 pl-2">
+                                            {isConfirmPasswordValid ? <button type="button" aria-label="Toggle confirm password visibility" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="text-gray-400 hover:text-white transition-colors p-2 rounded-full">{showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button> : <Lock className="h-5 w-5 text-gray-400 flex-shrink-0" />}
+                                        </div>
+                                        <input ref={confirmPasswordInputRef} type={showConfirmPassword ? "text" : "password"} placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-gray-500 focus:outline-none" />
+                                        <div className={cn( "relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isConfirmPasswordValid ? "w-10 pr-1" : "w-0" )}><GlassButton type="submit" size="icon" aria-label="Finish sign-up" contentClassName="text-white hover:text-white"><ArrowRight className="w-5 h-5" /></GlassButton></div>
+                                    </div></div>
+                                </div>
+                                <BlurFade inView delay={0.2}><button type="button" onClick={handleGoBack} className="mt-4 flex items-center justify-center w-full gap-2 text-sm text-gray-400 hover:text-white transition-colors"><ArrowLeft className="w-4 h-4" /> Go back</button></BlurFade>
+                            </BlurFade>}
+                        </AnimatePresence>
+                    </form>
+                </fieldset>
+            </div>
+        </div>
+      );
+    };
+
+    // --- Profile Setup Component ---
+    const ProfileSetup = ({ onComplete, user }) => {
+      const [name, setName] = useState(user?.name || '');
+      const [year, setYear] = useState(user?.year || '');
+      const [branch, setBranch] = useState(user?.branch || '');
+      const [image, setImage] = useState(user?.avatar || null);
+      const fileInputRef = useRef(null);
+
+      const handleImageChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+          const reader = new FileReader();
+          reader.onload = (e) => setImage(e.target.result);
+          reader.readAsDataURL(e.target.files[0]);
+        }
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if(name && year && branch) {
+          onComplete({ name, year, branch, avatar: image });
+        }
+      };
+
+      return (
+        <div className="flex h-[100dvh] w-full items-center justify-center relative overflow-hidden bg-[#050505]">
+          <div className="absolute inset-0 pointer-events-none"><GradientBackground /></div>
+          
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md p-8 glass-card rounded-3xl mx-4 border border-white/10 shadow-2xl">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-display font-bold text-white mb-2 tracking-tight">Complete Profile</h2>
+              <p className="text-gray-400 text-sm">Let AskMNIT know you better.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="flex justify-center mb-6">
+                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-brand-purple/50 bg-[#111111] flex items-center justify-center shadow-[0_0_15px_rgba(157,78,221,0.3)]">
+                    {image ? <img src={image} className="w-full h-full object-cover" /> : <User size={40} className="text-gray-500" />}
+                  </div>
+                  <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="text-white w-8 h-8" />
+                  </div>
+                  <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 ml-1">Display Name</label>
+                  <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full mt-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 transition-colors placeholder-gray-600" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 ml-1">B.Tech Year</label>
+                    <select required value={year} onChange={e => setYear(e.target.value)} className="w-full mt-1 bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 transition-colors appearance-none cursor-pointer">
+                      <option value="" disabled>Select Year</option>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 ml-1">Branch</label>
+                    <select required value={branch} onChange={e => setBranch(e.target.value)} className="w-full mt-1 bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-purple/50 transition-colors appearance-none cursor-pointer">
+                      <option value="" disabled>Select Branch</option>
+                      <option value="CSE">CSE</option>
+                      <option value="ECE">ECE</option>
+                      <option value="EE">EE</option>
+                      <option value="ME">Mechanical</option>
+                      <option value="CE">Civil</option>
+                      <option value="CH">Chemical</option>
+                      <option value="MME">MME</option>
+                      <option value="Arch">Architecture</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" disabled={!name || !year || !branch} className="w-full mt-8 bg-gradient-to-r from-brand-purple to-brand-pink text-white font-semibold py-3.5 rounded-full hover:shadow-[0_0_20px_rgba(157,78,221,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                Start Chatting
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // --- Main Chat Interface ---
+    const callGeminiAPI = async (payload) => {
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Backend Error');
+        }
+        
+        return data.reply;
+      } catch (error) {
+        console.error("Backend API Error:", error);
+        return "Arre bhai, MNIT ka wifi lagta hai band pad gaya. Server down hai, thodi der me try kar! 💀";
+      }
+    };
+
+    const ChatApp = ({ user, onLogout, onUpdateProfile }) => {
+      const [sidebarOpen, setSidebarOpen] = useState(false);
+      const [chats, setChats] = useState([]);
+      const [currentChatId, setCurrentChatId] = useState(null);
+      const [messages, setMessages] = useState({});
+      const [input, setInput] = useState('');
+      const [isTyping, setIsTyping] = useState(false);
+      const textareaRef = useRef(null);
+      const messagesEndRef = useRef(null);
+
+      // Load chats from Supabase
+      useEffect(() => {
+        const fetchChats = async () => {
+          const { data } = await supabase.from('chats').select('*').eq('user_email', user.email).order('created_at', { ascending: false });
+          if (data) setChats(data);
+        };
+        fetchChats();
+      }, [user.email]);
+
+      // Load messages for current chat from Supabase
+      useEffect(() => {
+        if (!currentChatId) return;
+        if (!messages[currentChatId]) {
+          const fetchMessages = async () => {
+            const { data } = await supabase.from('messages').select('*').eq('chat_id', currentChatId).order('created_at', { ascending: true });
+            if (data) setMessages(prev => ({...prev, [currentChatId]: data}));
+          };
+          fetchMessages();
+        }
+      }, [currentChatId]);
+
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      };
+
+      useEffect(() => { scrollToBottom() }, [messages, currentChatId, isTyping]);
+
+      const createNewChat = async (firstMsg = null) => {
+        const title = firstMsg ? firstMsg.substring(0, 20) + '...' : 'New Chat';
+        const { data } = await supabase.from('chats').insert([{ user_email: user.email, title }]).select().single();
+        if (data) {
+          setChats(prev => [data, ...prev]);
+          setCurrentChatId(data.id);
+          setMessages(prev => ({...prev, [data.id]: firstMsg ? [{role:'user', content:firstMsg}] : []}));
+          if (firstMsg) {
+            await supabase.from('messages').insert([{ chat_id: data.id, role: 'user', content: firstMsg }]);
+          }
+          return data.id;
+        }
+        return null;
+      };
+
+      const handleSend = async () => {
+        if (!input.trim() || isTyping) return;
+        const msgText = input.trim();
+        setInput('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+
+        const newUserMsg = { role: 'user', content: msgText };
+        let chatId = currentChatId;
+        if (!chatId) {
+          chatId = await createNewChat(msgText);
+          if (!chatId) return; // failed to create
+        } else {
+          // If chat existed, save user message to DB
+          await supabase.from('messages').insert([{ chat_id: chatId, role: 'user', content: msgText }]);
+          setMessages(prev => {
+            const updatedChat = [...(prev[chatId] || []), newUserMsg];
+            return { ...prev, [chatId]: updatedChat };
+          });
+        }
+
+        setIsTyping(true);
+        
+        const userName = user?.name || "Junior";
+        const currentHistory = messages[chatId] || []; // Exclude the latest message
+        const apiPayload = { history: currentHistory, latestMsg: msgText, userName };
+        
+        try {
+            const reply = await callGeminiAPI(apiPayload);
+            
+            // Save bot reply to DB
+            await supabase.from('messages').insert([{ chat_id: chatId, role: 'assistant', content: reply }]);
+            
+            setMessages(prev => ({
+              ...prev,
+              [chatId]: [...(prev[chatId] || []), {role:'assistant', content:reply}]
+            }));
+        } catch (error) {
+            console.error("API Error:", error);
+        } finally {
+            setIsTyping(false);
+        }
+      };
+
+      const deleteChat = async (id) => {
+        await supabase.from('chats').delete().eq('id', id);
+        setChats(chats.filter(c => c.id !== id));
+        const newMsgs = {...messages};
+        delete newMsgs[id];
+        setMessages(newMsgs);
+        if (currentChatId === id) setCurrentChatId(null);
+      };
+
+      const currentMessages = currentChatId ? (messages[currentChatId] || []) : [];
+
+      return (
+        <div className="flex h-[100dvh] w-full bg-[#050505] text-gray-100 font-sans overflow-hidden relative">
+          
+          {/* Mobile Sidebar Overlay */}
+          {sidebarOpen && (
+            <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)}></div>
+          )}
+
+          {/* Sidebar */}
+          <aside className={`fixed md:relative z-40 w-72 h-[100dvh] flex-shrink-0 border-r border-white/5 bg-[#0a0a0a]/95 md:bg-[#0a0a0a]/50 backdrop-blur-xl flex flex-col justify-between transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+            <div className="p-4 flex flex-col h-full overflow-hidden">
+              <div className="flex items-center justify-between mb-6 px-2 mt-2 md:mt-0">
+                <div className="flex items-center gap-3">
+                  <DefaultLogo />
+                  <h1 className="text-xl font-display font-bold tracking-wide">AskMNIT</h1>
+                </div>
+                <button className="md:hidden text-gray-400 p-2" onClick={() => setSidebarOpen(false)}><X size={20}/></button>
+              </div>
+
+              {/* My Profile Tab */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between p-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group" onClick={onUpdateProfile}>
+                  <span className="font-semibold px-4 text-sm text-gray-200">My Profile</span>
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-brand-purple/20 flex items-center justify-center relative">
+                    {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <User size={16} className="text-brand-purple" />}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Camera size={14} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={() => {setCurrentChatId(null); setSidebarOpen(false)}} className="w-full flex items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-brand-purple/20 to-brand-pink/20 hover:from-brand-purple/30 hover:to-brand-pink/30 border border-brand-purple/30 transition-colors text-sm font-semibold text-white mb-4">
+                <Plus size={18} className="text-white" /> Start New Chat
+              </button>
+
+              <div className="flex-1 overflow-y-auto hide-scrollbar space-y-2 mt-2 pb-4">
+                {chats.length === 0 && <p className="text-xs text-gray-500 text-center mt-10">No chat history</p>}
+                {chats.map(chat => (
+                  <div key={chat.id} onClick={() => {setCurrentChatId(chat.id); setSidebarOpen(false);}} className={`group relative flex items-center gap-3 px-4 py-3 rounded-full transition-colors text-sm cursor-pointer border ${currentChatId === chat.id ? 'bg-white/10 border-white/10 text-white' : 'hover:bg-white/5 text-gray-400 border-transparent hover:border-white/5'}`}>
+                    <MessageSquare size={16} className={currentChatId === chat.id ? "text-brand-purple" : "text-gray-500"} /> 
+                    <span className="truncate flex-1 font-medium">{chat.title}</span>
+                    <div className="hidden group-hover:flex items-center gap-2 absolute right-3 bg-[#111] px-2 py-1 rounded-full shadow-lg">
+                      <button className="text-gray-400 hover:text-white transition-colors"><Pin size={14} /></button>
+                      <button className="text-gray-400 hover:text-red-400 transition-colors" onClick={(e) => { e.stopPropagation(); deleteChat(chat.id); }}><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-white/5 bg-[#0a0a0a]">
+               <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-sm text-gray-400 hover:text-white">
+                 <LogOut size={16} /> Logout
+               </button>
+            </div>
+          </aside>
+
+          {/* Main chat */}
+          <main className="flex-1 flex flex-col relative h-[100dvh]">
+            <header className="h-16 border-b border-white/5 flex items-center justify-between px-4 md:px-6 glass-panel z-10 w-full flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <button className="md:hidden p-2 -ml-2 rounded-lg hover:bg-white/10 text-gray-400" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button>
+                <h2 className="font-display font-semibold text-lg">{currentChatId ? chats.find(c=>c.id===currentChatId)?.title || 'Chat' : 'New Conversation'}</h2>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-green/10 border border-brand-green/20">
+                <span className="w-2 h-2 rounded-full bg-brand-green animate-pulse"></span>
+                <span className="text-xs font-medium text-brand-green hidden sm:inline">AskMNIT Online</span>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-y-auto px-4 md:px-10 py-6 space-y-6 pb-32 hide-scrollbar flex flex-col">
+              {!currentChatId && (
+                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 max-w-md mx-auto mb-20">
+                  <div className="w-16 h-16 bg-brand-purple/20 rounded-full flex items-center justify-center mb-4 border border-brand-purple/30">
+                    <Bot size={32} className="text-brand-purple" />
+                  </div>
+                  <h3 className="text-xl font-display font-semibold text-white mb-2">AskMNIT Assistant</h3>
+                  <p className="text-sm text-gray-400">Your street-smart college senior. Ask me anything about MNIT, from academics to campus survival hacks.</p>
+                </div>
+              )}
+              {currentMessages.map((msg, idx) => (
+                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.2 }} key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                  <div className={`flex gap-3 max-w-[85%] md:max-w-[70%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'assistant' ? 'bg-gradient-to-br from-brand-purple/20 to-brand-pink/20 border border-brand-purple/30 text-brand-purple shadow-[0_0_10px_rgba(157,78,221,0.2)]' : 'bg-dark-600 text-gray-300 overflow-hidden'}`}>
+                      {msg.role === 'assistant' ? <Bot size={18} /> : (user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : <User size={18} />)}
+                    </div>
+                    <div className={`px-5 py-3.5 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-[#1a1a1a] border border-white/10 text-gray-100 rounded-3xl rounded-tr-sm' : 'glass-card border border-brand-purple/20 text-gray-200 rounded-3xl rounded-tl-sm shadow-[0_0_15px_rgba(157,78,221,0.05)]'}`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+              {isTyping && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start w-full">
+                  <div className="flex gap-3 max-w-[85%]">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-brand-purple/20 to-brand-pink/20 border border-brand-purple/30 text-brand-purple shadow-[0_0_10px_rgba(157,78,221,0.2)]">
+                      <Bot size={18} />
+                    </div>
+                    <div className="px-5 py-4 glass-card border border-brand-purple/20 rounded-3xl rounded-tl-sm flex items-center gap-1.5">
+                      <motion.div animate={{y:[0,-5,0]}} transition={{repeat:Infinity, duration:0.6, delay:0}} className="w-1.5 h-1.5 bg-brand-purple rounded-full"></motion.div>
+                      <motion.div animate={{y:[0,-5,0]}} transition={{repeat:Infinity, duration:0.6, delay:0.2}} className="w-1.5 h-1.5 bg-brand-purple rounded-full"></motion.div>
+                      <motion.div animate={{y:[0,-5,0]}} transition={{repeat:Infinity, duration:0.6, delay:0.4}} className="w-1.5 h-1.5 bg-brand-purple rounded-full"></motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="absolute bottom-0 w-full bg-gradient-to-t from-[#050505] via-[#050505]/95 to-transparent pt-10 pb-4 px-4 md:px-10 z-20">
+              <div className="max-w-3xl mx-auto">
+                <div className="relative flex items-end p-1.5 rounded-[32px] border border-white/10 shadow-2xl bg-[#111111]/80 backdrop-blur-xl transition-all focus-within:border-brand-purple/50 focus-within:bg-[#111111]">
+                  <button className="p-3 mb-1 text-gray-400 hover:text-white rounded-full transition-colors"><Paperclip size={20} /></button>
+                  <textarea 
+                    ref={textareaRef}
+                    value={input} 
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                    }} 
+                    onKeyDown={(e) => {
+                      if(e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder="Ask your senior anything..." 
+                    className="flex-1 bg-transparent border-none outline-none text-[15px] px-2 py-3.5 text-white placeholder-gray-500 max-h-32 resize-none hide-scrollbar" 
+                    rows={1}
+                  />
+                  <button 
+                    onClick={handleSend} 
+                    disabled={!input.trim() || isTyping}
+                    className={`p-3 mb-1 mr-1 rounded-full flex items-center justify-center transition-all duration-300 ${input.trim() && !isTyping ? 'bg-gradient-to-r from-brand-purple to-brand-pink text-white shadow-[0_0_15px_rgba(157,78,221,0.5)] scale-100 hover:scale-105' : 'bg-white/5 text-gray-600 scale-95'}`}>
+                    <Send size={18} className={input.trim() && !isTyping ? "translate-x-0.5 -translate-y-0.5" : ""} />
+                  </button>
+                </div>
+                <p className="text-center text-[10px] text-gray-500 mt-2 font-medium tracking-wide">AskMNIT acts as a student peer. For official matters, contact admin.</p>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    };
+
+    // --- App Root Component ---
+    const App = () => {
+      const [authState, setAuthState] = useState('checking'); // checking, auth, profile, chat
+      const [user, setUser] = useState(null);
+
+      useEffect(() => {
+        const storedUser = localStorage.getItem('askmnit_user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+          setAuthState('chat');
+        } else {
+          setAuthState('auth');
+        }
+      }, []);
+
+      const handleLogin = async (data) => {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('email', data.email).single();
+        if (profile) {
+           setUser(profile);
+           localStorage.setItem('askmnit_user', JSON.stringify(profile));
+           setAuthState('chat');
+        } else {
+           setUser({ email: data.email });
+           setAuthState('profile');
+        }
+      };
+
+      const handleProfileComplete = async (profileData) => {
+        const completeUser = { email: user.email, ...profileData };
+        const { data: insertedUser, error } = await supabase.from('profiles').insert([completeUser]).select().single();
+        
+        if (insertedUser) {
+           setUser(insertedUser);
+           localStorage.setItem('askmnit_user', JSON.stringify(insertedUser));
+           setAuthState('chat');
+        } else {
+           console.error("Profile save error:", error);
+           alert("Failed to save profile to Supabase!");
+        }
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem('askmnit_user');
+        setUser(null);
+        setAuthState('auth');
+      };
+
+      if (authState === 'checking') return null;
+
+      return (
+        <div className="w-full h-[100dvh] bg-[#0a0a0a] text-foreground font-sans selection:bg-brand-purple/30">
+          <AnimatePresence mode="wait">
+            {authState === 'auth' && (
+              <motion.div key="auth" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="h-full">
+                <AuthComponent brandName="AskMNIT" onLogin={handleLogin} />
+              </motion.div>
+            )}
+            {authState === 'profile' && (
+              <motion.div key="profile" initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} exit={{opacity:0}} className="h-full">
+                <ProfileSetup onComplete={handleProfileComplete} user={user} />
+              </motion.div>
+            )}
+            {authState === 'chat' && (
+              <motion.div key="chat" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="h-full">
+                <ChatApp user={user} onLogout={handleLogout} onUpdateProfile={() => setAuthState('profile')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )
+    };
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
 </html>
